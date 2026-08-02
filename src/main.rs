@@ -165,7 +165,7 @@ async fn manifest_handler(
 
     Response::builder()
         .header(header::CONTENT_TYPE, "text/xml; charset=utf-8")
-        .body(plist_content)
+        .body(plist_content.into()) // ここを plist_content.into() に修正
         .unwrap()
 }
 
