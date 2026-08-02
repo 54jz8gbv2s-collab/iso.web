@@ -159,7 +159,7 @@ async fn manifest_handler(
     </array>
 </dict>
 </plist>
-"__,
+"#,
         ipa_url
     );
 
