@@ -1,11 +1,10 @@
 use axum::{
-    extract::DefaultBodyLimit,
+    extract::{DefaultBodyLimit, Multipart},
     http::{header, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
     Router,
 };
-use axum::extract::Multipart;
 use std::fs;
 use std::net::SocketAddr;
 use std::path::Path;
@@ -62,7 +61,10 @@ async fn index_handler() -> Html<&'static str> {
     "#)
 }
 
-async fn upload_handler(mut multipart: Multipart) -> Response {
+async fn upload_handler(
+    headers: axum::http::HeaderMap,
+    mut multipart: Multipart,
+) -> Response {
     let upload_dir = Path::new("/tmp/uploads");
     let mut saved_filename = String::new();
 
@@ -89,6 +91,13 @@ async fn upload_handler(mut multipart: Multipart) -> Response {
         return (StatusCode::BAD_REQUEST, "No file uploaded").into_response();
     }
 
+    let host = headers
+        .get(header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("localhost:8080");
+
+    let manifest_url = format!("https://{}/manifest/{}", host, saved_filename);
+
     Html(format!(
         r#"
         <!DOCTYPE html>
@@ -107,12 +116,12 @@ async fn upload_handler(mut multipart: Multipart) -> Response {
             <div class="card">
                 <h2>準備完了！</h2>
                 <p>下のボタンをタップするとインストールが始まります。</p>
-                <a class="btn" href="itms-services://?action=download-manifest&url=https://{{HOST}}/manifest/{}">インストールする</a>
+                <a class="btn" href="itms-services://?action=download-manifest&url={}">インストールする</a>
             </div>
         </body>
         </html>
         "#,
-        saved_filename
+        manifest_url
     )).into_response()
 }
 
@@ -165,7 +174,7 @@ async fn manifest_handler(
 
     Response::builder()
         .header(header::CONTENT_TYPE, "text/xml; charset=utf-8")
-        .body(plist_content.into()) // ここを plist_content.into() に修正
+        .body(axum::body::Body::from(plist_content))
         .unwrap()
 }
 
@@ -176,7 +185,7 @@ async fn download_ipa(
     if let Ok(data) = fs::read(filepath) {
         Response::builder()
             .header(header::CONTENT_TYPE, "application/octet-stream")
-            .body(data.into())
+            .body(axum::body::Body::from(data))
             .unwrap()
     } else {
         StatusCode::NOT_FOUND.into_response()
